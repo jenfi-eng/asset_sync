@@ -115,6 +115,16 @@ module AssetSync
       #        (work-around for https://github.com/fog/fog/issues/596)
       files = []
       bucket.files.each { |f| files << f.key }
+      return files + get_remote_webpacker_files
+    end
+
+    # HACK WARNING: Only manually tested for specific usecase.
+    # Use at own risk.
+    # Only storage.rb:118 was changed for this.
+    def get_remote_webpacker_files
+      files = []
+      webpacker_prefix = connection.directories.get(self.config.fog_directory, prefix: 'packs/')
+      webpacker_prefix.files.each { |f| files << f.key }
       return files
     end
 
