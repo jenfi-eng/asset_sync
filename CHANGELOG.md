@@ -18,6 +18,46 @@ This project adheres to [Semantic Versioning](http://semver.org/).
 - Nothing
 
 
+## [2.11.0] - 2020-03-13
+
+### Added
+
+- Add option `remote_file_list_cache_file_path` to skip scanning remote
+  (https://github.com/AssetSync/asset_sync/pull/400)
+
+
+## [2.10.0] - 2020-02-26
+
+### Added
+
+- Add option `concurrent_uploads_max_threads` to limit number of threads for uploading files
+  (https://github.com/AssetSync/asset_sync/pull/398)
+
+
+## [2.9.1] - 2020-02-20
+
+### Fixed
+
+- Fix uploading of sprockets manifest file
+  (https://github.com/AssetSync/asset_sync/pull/397)
+
+
+## [2.9.0] - 2020-01-15
+
+### Added
+
+- Add option `concurrent_uploads` to improve speed of uploading
+  (https://github.com/AssetSync/asset_sync/pull/393)
+
+
+## [2.8.2] - 2019-12-27
+
+### Changed
+
+- Use `delete_multiple_objects` when storage is `aws`
+  (https://github.com/AssetSync/asset_sync/pull/392)
+
+
 ## [2.8.1] - 2019-07-25
 
 ### Changed
@@ -922,7 +962,12 @@ Changes:
     * Merge branch 'sinatra'
 
 
-[Unreleased]: https://github.com/AssetSync/asset_sync/compare/v2.8.1...HEAD
+[Unreleased]: https://github.com/AssetSync/asset_sync/compare/v2.11.0...HEAD
+[2.11.0]: https://github.com/AssetSync/asset_sync/compare/v2.10.0...v2.11.0
+[2.10.0]: https://github.com/AssetSync/asset_sync/compare/v2.9.1...v2.10.0
+[2.9.1]: https://github.com/AssetSync/asset_sync/compare/v2.9.0...v2.9.1
+[2.9.0]: https://github.com/AssetSync/asset_sync/compare/v2.8.2...v2.9.0
+[2.8.2]: https://github.com/AssetSync/asset_sync/compare/v2.8.1...v2.8.2
 [2.8.1]: https://github.com/AssetSync/asset_sync/compare/v2.8.0...v2.8.1
 [2.8.0]: https://github.com/AssetSync/asset_sync/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/AssetSync/asset_sync/compare/v2.6.0...v2.7.0

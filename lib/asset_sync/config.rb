@@ -26,7 +26,9 @@ module AssetSync
     attr_accessor :cdn_distribution_id
     attr_accessor :cache_asset_regexps
     attr_accessor :include_manifest
-    attr_writer :public_path
+    attr_accessor :concurrent_uploads
+    attr_accessor :concurrent_uploads_max_threads
+    attr_accessor :remote_file_list_cache_file_path
 
     # FOG configuration
     attr_accessor :fog_provider          # Currently Supported ['AWS', 'Rackspace']
@@ -66,6 +68,7 @@ module AssetSync
     validates :google_storage_access_key_id,      :presence => true, :if => :google_interop?
     validates :google_json_key_location,          :presence => true, :if => :google_service_account?
     validates :google_project,                    :presence => true, :if => :google_service_account?
+    validates :concurrent_uploads,    :inclusion => { :in => [true, false] }
 
     def initialize
       self.fog_region = nil
@@ -84,6 +87,9 @@ module AssetSync
       self.invalidate = []
       self.cache_asset_regexps = []
       self.include_manifest = false
+      self.concurrent_uploads = false
+      self.concurrent_uploads_max_threads = 10
+      self.remote_file_list_cache_file_path = nil
       @additional_local_file_paths_procs = []
 
       load_yml! if defined?(::Rails) && yml_exists?
@@ -172,6 +178,19 @@ module AssetSync
       @public_path || ::Rails.public_path
     end
 
+    def public_path=(path)
+      # Generate absolute path even when relative path passed in
+      # Required for generating relative sprockets manifest path
+      pathname = Pathname(path)
+      @public_path = if pathname.absolute?
+        pathname
+      elsif defined?(::Rails.root)
+        ::Rails.root.join(pathname)
+      else
+        Pathname(::Dir.pwd).join(pathname)
+      end
+    end
+
     def load_yml!
       self.enabled                = yml["enabled"] if yml.has_key?('enabled')
       self.fog_provider           = yml["fog_provider"]
@@ -206,6 +225,9 @@ module AssetSync
       self.cdn_distribution_id    = yml['cdn_distribution_id'] if yml.has_key?("cdn_distribution_id")
       self.cache_asset_regexps    = yml['cache_asset_regexps'] if yml.has_key?("cache_asset_regexps")
       self.include_manifest       = yml['include_manifest'] if yml.has_key?("include_manifest")
+      self.concurrent_uploads     = yml['concurrent_uploads'] if yml.has_key?('concurrent_uploads')
+      self.concurrent_uploads_max_threads = yml['concurrent_uploads_max_threads'] if yml.has_key?('concurrent_uploads_max_threads')
+      self.remote_file_list_cache_file_path = yml['remote_file_list_cache_file_path'] if yml.has_key?('remote_file_list_cache_file_path')
 
       self.azure_storage_account_name = yml['azure_storage_account_name'] if yml.has_key?("azure_storage_account_name")
       self.azure_storage_access_key   = yml['azure_storage_access_key'] if yml.has_key?("azure_storage_access_key")

@@ -37,6 +37,10 @@ module AssetSync
       self.config.public_path
     end
 
+    def remote_file_list_cache_file_path
+      self.config.remote_file_list_cache_file_path
+    end
+
     def ignored_files
       expand_file_names(self.config.ignored_files)
     end
@@ -56,6 +60,32 @@ module AssetSync
     def local_files
       @local_files ||=
         (get_local_files + config.additional_local_file_paths).uniq
+    end
+
+    def remote_files
+      return [] if ignore_existing_remote_files?
+      return @remote_files if @remote_files
+
+      if remote_file_list_cache_file_path && File.file?(remote_file_list_cache_file_path)
+        begin
+          content = File.read(remote_file_list_cache_file_path)
+          return @remote_files = JSON.parse(content)
+        rescue JSON::ParserError
+          warn "Failed to parse #{remote_file_list_cache_file_path} as json"
+        end
+      end
+
+      @remote_files = get_remote_files
+    end
+
+    def update_remote_file_list_cache(local_files_to_upload)
+      return unless remote_file_list_cache_file_path
+      return if ignore_existing_remote_files?
+
+      File.open(self.remote_file_list_cache_file_path, 'w') do |file|
+        uploaded = local_files_to_upload + remote_files
+        file.write(uploaded.to_json)
+      end
     end
 
     def always_upload_files
@@ -142,9 +172,15 @@ module AssetSync
       from_remote_files_to_delete = remote_files - local_files - ignored_files - always_upload_files
 
       log "Flagging #{from_remote_files_to_delete.size} file(s) for deletion"
-      # Delete unneeded remote files
-      bucket.files.each do |f|
-        delete_file(f, from_remote_files_to_delete)
+      # Delete unneeded remote files, if we are on aws delete in bulk else use sequential delete
+      if self.config.aws? && connection.respond_to?(:delete_multiple_objects)
+        from_remote_files_to_delete.each_slice(500) do |slice|
+          connection.delete_multiple_objects(config.fog_directory, slice)
+        end
+      else
+        bucket.files.each do |f|
+          delete_file(f, from_remote_files_to_delete)
+        end
       end
     end
 
@@ -247,16 +283,32 @@ module AssetSync
     end
 
     def upload_files
-      # get a fresh list of remote files
-      remote_files = ignore_existing_remote_files? ? [] : get_remote_files
       # fixes: https://github.com/rumblelabs/asset_sync/issues/19
       local_files_to_upload = local_files - ignored_files - remote_files + always_upload_files
       local_files_to_upload = (local_files_to_upload + get_non_fingerprinted(local_files_to_upload)).uniq
+      # Only files.
+      local_files_to_upload = local_files_to_upload.select { |f| File.file? "#{path}/#{f}" }
 
-      # Upload new files
-      local_files_to_upload.each do |f|
-        next unless File.file? "#{path}/#{f}" # Only files.
-        upload_file f
+      if self.config.concurrent_uploads
+        jobs = Queue.new
+        local_files_to_upload.each { |f| jobs.push(f) }
+        jobs.close
+
+        num_threads = [self.config.concurrent_uploads_max_threads, local_files_to_upload.length].min
+        # Upload new files
+        workers = Array.new(num_threads) do
+          Thread.new do
+            while f = jobs.pop
+              upload_file(f)
+            end
+          end
+        end
+        workers.map(&:join)
+      else
+        # Upload new files
+        local_files_to_upload.each do |f|
+          upload_file f
+        end
       end
 
       if self.config.cdn_distribution_id && files_to_invalidate.any?
@@ -265,6 +317,8 @@ module AssetSync
         data = cdn.post_invalidation(self.config.cdn_distribution_id, files_to_invalidate)
         log "Invalidation id: #{data.body["Id"]}"
       end
+
+      update_remote_file_list_cache(local_files_to_upload)
     end
 
     def sync
